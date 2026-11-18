@@ -34,8 +34,13 @@
   /* ===== 2. STIL ===== */
 
   var path = location.pathname;
+  // Produktseiten erkennt man an der Endung .html
+  var PRODUKTSEITE = /\.html$/.test(path);
+  // Abfragen ohne Kunden-Sitzung, damit Brotkrumen und Sortierung des Kunden unveraendert bleiben
+  var OHNE_SITZUNG = { credentials: 'omit' };
   var banner = BANNER_SEITEN.indexOf(path) > -1;
   if (banner) document.documentElement.classList.add('lu-banner');
+  if (PRODUKTSEITE) document.documentElement.classList.add('lu-produkt');
 
   var css = [
     // Kategorie-Seiten: Auswahl oben, Kurztext weg; Uebersichten: Text unter die Kacheln
@@ -65,6 +70,8 @@
     '@media(max-width:575px){.lu-emp{flex-direction:column;text-align:center;gap:8px}.lu-emp img{width:180px;height:180px}}',
     // Zusatzverkauf (ersetzt den alten Block .lu-zb)
     '.lu-zs-on .lu-zb{display:none!important}',
+    // Schlagwort-Knoepfe auf Produktseiten ausblenden
+    'html.lu-produkt .info-right .tagcloud{display:none!important}',
     '.lu-zs{margin-top:18px;border-top:1px solid #e3e0da;padding-top:14px}',
     '.lu-zs h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 10px;font-weight:700}',
     '.lu-zs .r{display:flex;gap:10px}',
@@ -93,7 +100,7 @@
 
   function ab(a) {
     if (OHNE_PREIS.test(a.href) || a.querySelector('.lu-ab')) return;
-    fetch(a.href + '?format=json&sort=lowest&limit=1')
+    fetch(a.href + '?format=json&sort=lowest&limit=1', OHNE_SITZUNG)
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var p = j.collection && j.collection.products;
@@ -116,7 +123,7 @@
     s.setAttribute('data-lu', '1');
     Q('a', s).forEach(function (a) {
       if (!GRUPPE.test(a.href)) { ab(a); return; }
-      fetch(a.href)
+      fetch(a.href, OHNE_SITZUNG)
         .then(function (r) { return r.text(); })
         .then(function (t) {
           var d = new DOMParser().parseFromString(t, 'text/html');
@@ -146,12 +153,12 @@
     var key = 'lu-empf-v1', d = null;
     try { d = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (e) {}
     if (d && Date.now() - d.t < 15 * 60 * 1000) { cb(d.m); return; }
-    fetch('/tags/' + EMPFEHLUNG_TAG + '/?format=json&limit=100')
+    fetch('/tags/' + EMPFEHLUNG_TAG + '/?format=json&limit=100', OHNE_SITZUNG)
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         var ps = j && j.collection && j.collection.products ? Object.keys(j.collection.products).map(function (k) { return j.collection.products[k]; }) : [];
         return Promise.all(ps.slice(0, 60).map(function (p) {
-          return fetch('/' + p.url + '?format=json')
+          return fetch('/' + p.url + '?format=json', OHNE_SITZUNG)
             .then(function (r) { return r.json(); })
             .then(function (x) {
               var c = x.product && x.product.categories ? Object.keys(x.product.categories).map(function (k) { return '/' + x.product.categories[k].url + '/'; }) : [];
@@ -184,7 +191,7 @@
   }
 
   function zeigeEmpfehlung(u) {
-    fetch('/' + u + '?format=json')
+    fetch('/' + u + '?format=json', OHNE_SITZUNG)
       .then(function (r) { return r.json(); })
       .then(function (j) {
         var p = j.product;
@@ -214,7 +221,7 @@
     var key = 'lu-tag-' + tag, d = null;
     try { d = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (e) {}
     if (d && Date.now() - d.t < 15 * 60 * 1000) { cb(d.p); return; }
-    fetch('/tags/' + tag + '/?format=json&limit=100')
+    fetch('/tags/' + tag + '/?format=json&limit=100', OHNE_SITZUNG)
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         var o = j && j.collection && j.collection.products ? j.collection.products : {};
@@ -254,7 +261,7 @@
       if (!sb && versuch++ < 20) { setTimeout(warte, 150); return; }
       if (sb) { zeige(/automatik|automatic/i.test(sb.textContent)); return; }
       // keine Uhr: nur bei Uhrenbewegern
-      fetch(location.pathname + '?format=json')
+      fetch(location.pathname + '?format=json', OHNE_SITZUNG)
         .then(function (r) { return r.json(); })
         .then(function (j) {
           var c = j.product && j.product.categories ? j.product.categories : {};
@@ -286,7 +293,7 @@
 
   function go() {
     if (path === '/') return;
-    if (document.querySelector('.productpage')) return;
+    if (PRODUKTSEITE) return; // Produktseiten: nichts veraendern
     Q('a.home-highlight').forEach(ab);
     leiste();
     // kurz warten, bis der Kopf («lu-kopf») aufgebaut ist
