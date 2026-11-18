@@ -69,16 +69,16 @@
     '.lu-emp .c{display:inline-block;margin-top:10px;background:#111;color:#fff;font:600 13px Inter,sans-serif;padding:9px 16px}',
     '@media(max-width:575px){.lu-emp{flex-direction:column;text-align:center;gap:8px}.lu-emp img{width:180px;height:180px}}',
     // Zusatzverkauf (ersetzt den alten Block .lu-zb)
-    '.lu-zs-on .lu-zb{display:none!important}',
+    '.lu-zs-on .lu-zb:not(.lu-zs){display:none!important}',
     // Schlagwort-Knoepfe auf Produktseiten ausblenden
     'html.lu-produkt .info-right .tagcloud{display:none!important}',
+    // gleiche Werte wie der bestehende Block «Passend dazu: Uhrenbox» (.lu-zb)
     '.lu-zs{margin-top:18px;border-top:1px solid #e3e0da;padding-top:14px}',
     '.lu-zs h4{font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 10px;font-weight:700}',
     '.lu-zs .r{display:flex;gap:10px}',
-    '.lu-zs .i{flex:1 1 0;border:1px solid #e3e0da;border-radius:6px;padding:8px;text-align:center;font-size:11.5px;line-height:1.3;display:flex;flex-direction:column;color:#111!important;text-decoration:none!important}',
-    '.lu-zs img{width:100%;aspect-ratio:1/1;object-fit:contain}',
+    '.lu-zs .i{flex:1;border:1px solid #e3e0da;border-radius:6px;padding:8px;text-align:center;font-size:11.5px;line-height:1.3;color:#111!important;text-decoration:none!important;display:flex;flex-direction:column}',
+    '.lu-zs img{width:100%;aspect-ratio:1;object-fit:contain}',
     '.lu-zs .p{font-weight:700;font-size:13px;margin:4px 0}',
-    '.lu-zs .p s{font-weight:400;color:#888;margin-left:5px}',
     '.lu-zs .b{margin-top:auto;border:1px solid #111;font-size:11px;font-weight:700;padding:6px 0;border-radius:4px}'
   ].join('\n');
   var st = document.createElement('style');
@@ -238,10 +238,10 @@
 
   function zusatzBlock(titel, ps) {
     var z = document.createElement('div');
-    z.className = 'lu-zs col-12';
+    z.className = 'lu-zb lu-zs col-12';
     z.innerHTML = '<h4></h4><div class="r">' + ps.map(function (p) {
       return '<a class="i" href="/' + p.u + '"><img alt="" src="https://cdn.webshopapp.com/shops/49299/files/' + p.i + '/200x200x2/image.jpg">' +
-        '<span class="t"></span><span class="p">' + chf(p.n) + (p.o > p.n ? '<s>' + chf(p.o) + '</s>' : '') + '</span><span class="b">Ansehen</span></a>';
+        '<span class="t"></span><span class="p">CHF ' + Number(p.n).toFixed(2).replace('.', ',') + '</span><span class="b">Ansehen</span></a>';
     }).join('') + '</div>';
     z.querySelector('h4').textContent = titel;
     Q('.i', z).forEach(function (a, k) {
@@ -259,7 +259,8 @@
     (function warte() {
       var sb = document.querySelector('.lu-sb'); // Steckbrief gibt es nur bei Uhren
       if (!sb && versuch++ < 20) { setTimeout(warte, 150); return; }
-      if (sb) { zeige(/automatik|automatic/i.test(sb.textContent)); return; }
+      // Automatikuhr: Uhrenbeweger + Uhrenbox; andere Uhren behalten den bestehenden Uhrenbox-Block
+      if (sb) { if (/automatik|automatic/i.test(sb.textContent)) zeige(true); return; }
       // keine Uhr: nur bei Uhrenbewegern
       fetch(location.pathname + '?format=json', OHNE_SITZUNG)
         .then(function (r) { return r.json(); })
@@ -293,7 +294,7 @@
 
   function go() {
     if (path === '/') return;
-    if (PRODUKTSEITE) return; // Produktseiten: nichts veraendern
+    if (PRODUKTSEITE) { zusatz(); return; } // Produktseiten: nur Zusatzverkauf
     Q('a.home-highlight').forEach(ab);
     leiste();
     // kurz warten, bis der Kopf («lu-kopf») aufgebaut ist
