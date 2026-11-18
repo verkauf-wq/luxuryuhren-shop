@@ -2,23 +2,18 @@
  * luxuryuhren.ch – Zusatz-Code
  * Geladen aus Lightspeed › Web Extras › Custom JavaScript (eine Zeile mit jsDelivr).
  * Inhalt: Kategorie-Banner, «ab CHF»-Preise, aufgeloeste Zwischenebenen, Empfehlungen.
- * Stand: 18.11.2026
+ * Stand: 18.11.2026 (Empfehlung per Schlagwort)
  */
 (function () {
   'use strict';
 
   /* ===== 1. EINSTELLUNGEN ===== */
 
-  // Empfehlung pro Kategorie: Kategorie-Pfad -> Produkt-URL (ohne Domain)
-  var EMPFEHLUNG = {
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fuer-1-uhr/': 'modalo-affinity-uhrenbeweger-1-uhr-schwarz-1113.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-2-uhren/': 'lugano-fur-2-automatikuhren.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-3-uhren/': 'modalo-carat-uhrenbeweger-3-uhren-schwarz-3114.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-4-uhren/': 'modalo-affinity-uhrenbeweger-4-uhren-schwarz-4113.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-6-uhren/': 'chronoguard-premium-automatik-6-uhrenbeweger-mit-t.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-8-uhren/': 'windrose-uhrenbeweger-noblesse-8-uhren-petrol-13.html',
-    '/uhrenbeweger/anzahl-uhren/uhrenbeweger-fur-12-uhren/': 'windrose-uhrenbeweger-tempora-12-uhren-schwarz-08.html'
-  };
+  // Empfehlung: Produkt im Lightspeed-Admin mit dem Schlagwort (Tag) «Empfehlung» versehen.
+  // Der Kasten erscheint in der untersten Kategorie des Produkts (nicht auf «Marken»-Seiten).
+  // Pro Kategorie nur ein Produkt markieren. Aenderungen erscheinen spaetestens nach 15 Minuten.
+  var EMPFEHLUNG_TAG = 'empfehlung';
+  var OHNE_EMPFEHLUNG = /\/marken\//;
   var EMPFEHLUNG_TITEL = 'Unsere Empfehlung';
 
   // Seiten, auf denen die Auswahl oben als grosse Banner erscheint
@@ -131,9 +126,48 @@
 
   /* ===== 6. EMPFEHLUNG ===== */
 
+  function empfehlungsListe(cb) {
+    var key = 'lu-empf-v1', d = null;
+    try { d = JSON.parse(sessionStorage.getItem(key) || 'null'); } catch (e) {}
+    if (d && Date.now() - d.t < 15 * 60 * 1000) { cb(d.m); return; }
+    fetch('/tags/' + EMPFEHLUNG_TAG + '/?format=json&limit=100')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var ps = j && j.collection && j.collection.products ? Object.keys(j.collection.products).map(function (k) { return j.collection.products[k]; }) : [];
+        return Promise.all(ps.slice(0, 60).map(function (p) {
+          return fetch('/' + p.url + '?format=json')
+            .then(function (r) { return r.json(); })
+            .then(function (x) {
+              var c = x.product && x.product.categories ? Object.keys(x.product.categories).map(function (k) { return '/' + x.product.categories[k].url + '/'; }) : [];
+              // nur die untersten Kategorien des Produkts
+              var leaf = c.filter(function (a) { return !c.some(function (b) { return b !== a && b.indexOf(a) === 0; }); });
+              return { u: p.url, c: leaf };
+            })
+            .catch(function () { return null; });
+        }));
+      })
+      .then(function (list) {
+        var m = {};
+        (list || []).forEach(function (e) {
+          if (!e) return;
+          e.c.forEach(function (c) { if (!m[c] && !OHNE_EMPFEHLUNG.test(c)) m[c] = e.u; });
+        });
+        try { sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), m: m })); } catch (e) {}
+        cb(m);
+      })
+      .catch(function () { cb({}); });
+  }
+
   function empfehlung() {
-    var u = EMPFEHLUNG[path];
-    if (!u || document.querySelector('.lu-td')) return;
+    if (OHNE_EMPFEHLUNG.test(path) || document.querySelector('.lu-td')) return;
+    empfehlungsListe(function (m) {
+      var u = m[path];
+      if (!u || document.querySelector('.lu-td')) return;
+      zeigeEmpfehlung(u);
+    });
+  }
+
+  function zeigeEmpfehlung(u) {
     fetch('/' + u + '?format=json')
       .then(function (r) { return r.json(); })
       .then(function (j) {
